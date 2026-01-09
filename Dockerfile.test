@@ -1,0 +1,31 @@
+# Test Dockerfile for running pytest in CI/CD
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install poetry
+RUN pip install --no-cache-dir poetry==1.8.0
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install all dependencies including dev
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi
+
+# Copy application and test code
+COPY src/ ./src/
+COPY tests/ ./tests/
+
+# Set Python path
+ENV PYTHONPATH=/app/src
+ENV PYTHONUNBUFFERED=1
+
+# Default command runs tests
+CMD ["pytest", "-v", "--cov=securecode", "--cov-report=term-missing"]

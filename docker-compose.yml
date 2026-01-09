@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  securecode:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: securecode-ai:latest
+    container_name: securecode-scanner
+    volumes:
+      # Mount source code to scan (read-only for security)
+      - ./target:/code:ro
+      # Mount output directory for reports
+      - ./results:/results
+    environment:
+      - SECURECODE_OUTPUT_DIR=/results
+      - SECURECODE_SEVERITY_THRESHOLD=low
+    command: scan /code --output both
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Development service with source mounted
+  securecode-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: securecode-ai:dev
+    container_name: securecode-dev
+    volumes:
+      - ./src:/app/src:ro
+      - ./target:/code:ro
+      - ./results:/results
+    environment:
+      - SECURECODE_OUTPUT_DIR=/results
+      - PYTHONPATH=/app/src
+    command: scan /code --output both
+    profiles:
+      - dev
+
+  # Test runner service
+  securecode-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    image: securecode-ai:test
+    container_name: securecode-test
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./coverage:/app/coverage
+    command: pytest --cov=securecode --cov-report=html:/app/coverage
+    profiles:
+      - test
