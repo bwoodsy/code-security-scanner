@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureCode-AI Security Report</title>
+    <style>
+        :root {
+            --critical: #dc2626;
+            --critical-bg: #fef2f2;
+            --high: #ea580c;
+            --high-bg: #fff7ed;
+            --medium: #ca8a04;
+            --medium-bg: #fefce8;
+            --low: #2563eb;
+            --low-bg: #eff6ff;
+            --info: #6b7280;
+            --info-bg: #f9fafb;
+            --text: #1f2937;
+            --text-muted: #6b7280;
+            --bg: #ffffff;
+            --bg-secondary: #f9fafb;
+            --border: #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --text: #f9fafb;
+                --text-muted: #9ca3af;
+                --bg: #111827;
+                --bg-secondary: #1f2937;
+                --border: #374151;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .logo span {
+            color: var(--text);
+        }
+
+        .scan-info {
+            text-align: right;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .summary-card h3 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .summary-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .severity-chart {
+            margin: 2rem 0;
+        }
+
+        .bar-container {
+            display: flex;
+            height: 32px;
+            border-radius: 4px;
+            overflow: hidden;
+            background: var(--bg-secondary);
+        }
+
+        .bar-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.75rem;
+            min-width: fit-content;
+            padding: 0 0.5rem;
+        }
+
+        .bar-critical { background: var(--critical); }
+        .bar-high { background: var(--high); }
+        .bar-medium { background: var(--medium); }
+        .bar-low { background: var(--low); }
+        .bar-info { background: var(--info); }
+
+        .legend {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        section {
+            margin-bottom: 2.5rem;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .critical-section {
+            background: var(--critical-bg);
+            border: 1px solid var(--critical);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .critical-section h2 {
+            color: var(--critical);
+            border-bottom-color: var(--critical);
+        }
+
+        .vuln-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .vuln-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 1rem;
+            cursor: pointer;
+            background: var(--bg-secondary);
+        }
+
+        .vuln-header:hover {
+            background: var(--border);
+        }
+
+        .vuln-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .vuln-location {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .severity-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .severity-CRITICAL { background: var(--critical-bg); color: var(--critical); border: 1px solid var(--critical); }
+        .severity-HIGH { background: var(--high-bg); color: var(--high); border: 1px solid var(--high); }
+        .severity-MEDIUM { background: var(--medium-bg); color: var(--medium); border: 1px solid var(--medium); }
+        .severity-LOW { background: var(--low-bg); color: var(--low); border: 1px solid var(--low); }
+        .severity-INFO { background: var(--info-bg); color: var(--info); border: 1px solid var(--info); }
+
+        .vuln-body {
+            padding: 1rem;
+            display: none;
+        }
+
+        .vuln-body.open {
+            display: block;
+        }
+
+        .vuln-meta {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .vuln-meta-item {
+            font-size: 0.875rem;
+        }
+
+        .vuln-meta-item strong {
+            color: var(--text-muted);
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            margin: 1rem 0;
+        }
+
+        .code-block .line-highlight {
+            background: rgba(255, 255, 0, 0.1);
+            display: block;
+        }
+
+        .description, .remediation {
+            margin-top: 1rem;
+        }
+
+        .description h4, .remediation h4 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .file-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .file-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+        }
+
+        .file-group-header:hover {
+            background: var(--border);
+        }
+
+        .file-name {
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        .file-count {
+            background: var(--text-muted);
+            color: white;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+        }
+
+        .file-vulns {
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            display: none;
+        }
+
+        .file-vulns.open {
+            display: block;
+        }
+
+        .top-files {
+            list-style: none;
+        }
+
+        .top-files li {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .top-files li:last-child {
+            border-bottom: none;
+        }
+
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        @media print {
+            body { padding: 0; }
+            .vuln-body { display: block !important; }
+            .file-vulns { display: block !important; }
+            .vuln-header { cursor: default; }
+            header { page-break-after: avoid; }
+            .vuln-card { page-break-inside: avoid; }
+        }
+
+        @media (max-width: 640px) {
+            body { padding: 1rem; }
+            .summary-grid { grid-template-columns: 1fr 1fr; }
+            header { flex-direction: column; text-align: center; gap: 1rem; }
+            .scan-info { text-align: center; }
+        }
+
+        /* Statistics Section */
+        .statistics-section {
+            margin-bottom: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .stat-percent {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .confidence-note {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            color: #92400e;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .confidence-note {
+                background: #451a03;
+                border-color: #b45309;
+                color: #fcd34d;
+            }
+        }
+
+        .fp-badge {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-left: 0.5rem;
+        }
+
+        .fp-low { background: #dcfce7; color: #166534; }
+        .fp-medium { background: #fef3c7; color: #92400e; }
+        .fp-high { background: #fee2e2; color: #991b1b; }
+
+        /* Deep Analysis Styles */
+        .deep-analysis {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .deep-analysis h4 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .deep-analysis h4::before {
+            content: "🔍";
+        }
+
+        .verdict-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .verdict-CONFIRMED { background: #fee2e2; color: #991b1b; }
+        .verdict-LIKELY { background: #fed7aa; color: #9a3412; }
+        .verdict-POSSIBLE { background: #fef3c7; color: #92400e; }
+        .verdict-UNLIKELY { background: #dcfce7; color: #166534; }
+        .verdict-SAFE { background: #d1fae5; color: #065f46; }
+
+        .analysis-details {
+            font-size: 0.875rem;
+            margin-top: 0.75rem;
+        }
+
+        .analysis-details p {
+            margin: 0.25rem 0;
+        }
+
+        .analysis-details .source-info {
+            color: var(--text-muted);
+        }
+
+        .trace-path {
+            margin-top: 0.5rem;
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 0.5rem;
+            border-radius: 4px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .trace-path li {
+            list-style: none;
+            padding: 0.125rem 0;
+        }
+
+        .recommendation {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: #eff6ff;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            color: #1e40af;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .recommendation {
+                background: #1e3a5f;
+                color: #93c5fd;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">Secure<span>Code-AI</span></div>
+            <div class="scan-info">
+                <div>{{ metadata.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC') }}</div>
+                <div>{{ metadata.target_directory }}</div>
+            </div>
+        </header>
+
+        <section class="summary-grid">
+            <div class="summary-card">
+                <h3>Total Vulnerabilities</h3>
+                <div class="value" style="color: {% if summary.total_vulnerabilities > 0 %}var(--critical){% else %}#10b981{% endif %}">
+                    {{ summary.total_vulnerabilities }}
+                </div>
+            </div>
+            <div class="summary-card">
+                <h3>Files Scanned</h3>
+                <div class="value">{{ metadata.files_scanned }}</div>
+            </div>
+            <div class="summary-card">
+                <h3>Scan Duration</h3>
+                <div class="value">{{ "%.2f"|format(metadata.scan_duration_seconds) }}s</div>
+            </div>
+            <div class="summary-card">
+                <h3>Languages</h3>
+                <div class="value" style="font-size: 1.25rem;">{{ metadata.languages_scanned | join(', ') or 'N/A' }}</div>
+            </div>
+        </section>
+
+        {% if summary.total_vulnerabilities > 0 %}
+        <!-- Statistics Section -->
+        <section class="statistics-section">
+            <h2>Detection Statistics & Confidence</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #10b981;">{{ statistics.estimated_true_positives }}</div>
+                    <div class="stat-label">Estimated True Positives</div>
+                    <div class="stat-percent">{{ "%.1f"|format(statistics.overall_tp_rate) }}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: #ef4444;">{{ statistics.estimated_false_positives }}</div>
+                    <div class="stat-label">Estimated False Positives</div>
+                    <div class="stat-percent">{{ "%.1f"|format(statistics.overall_fp_rate) }}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ statistics.by_confidence.get('HIGH', 0) }}</div>
+                    <div class="stat-label">High Confidence</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ statistics.by_confidence.get('MEDIUM', 0) }}</div>
+                    <div class="stat-label">Medium Confidence</div>
+                </div>
+            </div>
+            <div class="confidence-note">
+                <strong>Note:</strong> False positive estimates are based on confidence levels and vulnerability types.
+                High confidence findings have ~10% FP rate, medium ~35%, low ~60%.
+                Review findings manually for accurate assessment.
+            </div>
+        </section>
+
+        <section class="severity-chart">
+            <h2>Severity Distribution</h2>
+            {% set total = summary.total_vulnerabilities %}
+            <div class="bar-container">
+                {% for sev in severity_order %}
+                {% set count = summary.by_severity.get(sev, 0) %}
+                {% if count > 0 %}
+                <div class="bar-segment bar-{{ sev|lower }}" style="width: {{ (count / total * 100)|round(1) }}%">
+                    {{ count }}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div class="legend">
+                {% for sev in severity_order %}
+                {% set count = summary.by_severity.get(sev, 0) %}
+                {% if count > 0 %}
+                <div class="legend-item">
+                    <div class="legend-color bar-{{ sev|lower }}"></div>
+                    <span>{{ sev }}: {{ count }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if critical_vulns %}
+        <section class="critical-section">
+            <h2>Critical & High Severity Issues</h2>
+            {% for vuln in critical_vulns %}
+            <div class="vuln-card">
+                <div class="vuln-header" onclick="toggleVuln(this)">
+                    <div>
+                        <div class="vuln-title">{{ vuln.title }}</div>
+                        <div class="vuln-location">{{ vuln.relative_path }}:{{ vuln.line }}</div>
+                    </div>
+                    <span class="severity-badge severity-{{ vuln.severity.value }}">{{ vuln.severity.value }}</span>
+                </div>
+                <div class="vuln-body">
+                    <div class="vuln-meta">
+                        <div class="vuln-meta-item"><strong>Type:</strong> {{ vuln.vulnerability_type.value }}</div>
+                        <div class="vuln-meta-item"><strong>Rule:</strong> {{ vuln.rule_id }}</div>
+                        {% if vuln.cwe_id %}<div class="vuln-meta-item"><strong>CWE:</strong> {{ vuln.cwe_id }}</div>{% endif %}
+                        {% if vuln.owasp_category %}<div class="vuln-meta-item"><strong>OWASP:</strong> {{ vuln.owasp_category }}</div>{% endif %}
+                        <div class="vuln-meta-item">
+                            <strong>FP Risk:</strong>
+                            {% set fp_prob = vuln_fp_probs.get(vuln.id, 35) %}
+                            <span class="fp-badge {% if fp_prob < 25 %}fp-low{% elif fp_prob < 50 %}fp-medium{% else %}fp-high{% endif %}">
+                                {{ fp_prob }}%
+                            </span>
+                        </div>
+                    </div>
+                    <pre class="code-block">{{ vuln.code_snippet }}</pre>
+                    <div class="description">
+                        <h4>Description</h4>
+                        <p>{{ vuln.description }}</p>
+                    </div>
+                    <div class="remediation">
+                        <h4>Remediation</h4>
+                        <p>{{ vuln.remediation | replace('\n', '<br>') | safe }}</p>
+                    </div>
+                    {% if vuln.metadata and vuln.metadata.deep_analysis and vuln.metadata.deep_analysis.performed %}
+                    {% set da = vuln.metadata.deep_analysis %}
+                    <div class="deep-analysis">
+                        <h4>Data Flow Analysis</h4>
+                        <span class="verdict-badge verdict-{{ da.verdict }}">{{ da.verdict }}</span>
+                        <div class="analysis-details">
+                            {% if da.source_found %}
+                            <p class="source-info"><strong>Source:</strong> {{ da.source_type }} (line {{ da.source_line }})</p>
+                            {% endif %}
+                            {% if da.sanitization_found %}
+                            <p><strong>Sanitization:</strong> {{ da.sanitizer_type }} (line {{ da.sanitizer_line }})</p>
+                            {% endif %}
+                            {% if da.trace_path %}
+                            <ul class="trace-path">
+                                {% for step in da.trace_path %}
+                                <li>{{ step }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% if da.recommendation %}
+                            <div class="recommendation">{{ da.recommendation }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <section>
+            <h2>All Vulnerabilities by File</h2>
+            {% for file_path, file_vulns in vulns_by_file.items() %}
+            <div class="file-group">
+                <div class="file-group-header" onclick="toggleFileGroup(this)">
+                    <span class="file-name">{{ file_path }}</span>
+                    <span class="file-count">{{ file_vulns|length }}</span>
+                </div>
+                <div class="file-vulns">
+                    {% for vuln in file_vulns %}
+                    <div class="vuln-card" style="border-radius: 0; border-left: none; border-right: none; {% if loop.last %}border-bottom: none;{% endif %}">
+                        <div class="vuln-header" onclick="toggleVuln(this); event.stopPropagation();">
+                            <div>
+                                <div class="vuln-title">{{ vuln.title }}</div>
+                                <div class="vuln-location">Line {{ vuln.line }}: {{ vuln.matched_code[:60] }}{% if vuln.matched_code|length > 60 %}...{% endif %}</div>
+                            </div>
+                            <span class="severity-badge severity-{{ vuln.severity.value }}">{{ vuln.severity.value }}</span>
+                        </div>
+                        <div class="vuln-body">
+                            <div class="vuln-meta">
+                                <div class="vuln-meta-item"><strong>Type:</strong> {{ vuln.vulnerability_type.value }}</div>
+                                <div class="vuln-meta-item"><strong>Rule:</strong> {{ vuln.rule_id }}</div>
+                                <div class="vuln-meta-item"><strong>Confidence:</strong> {{ vuln.confidence.value }}</div>
+                                {% if vuln.cwe_id %}<div class="vuln-meta-item"><strong>CWE:</strong> {{ vuln.cwe_id }}</div>{% endif %}
+                                <div class="vuln-meta-item">
+                                    <strong>FP Risk:</strong>
+                                    {% set fp_prob = vuln_fp_probs.get(vuln.id, 35) %}
+                                    <span class="fp-badge {% if fp_prob < 25 %}fp-low{% elif fp_prob < 50 %}fp-medium{% else %}fp-high{% endif %}">
+                                        {{ fp_prob }}%
+                                    </span>
+                                </div>
+                            </div>
+                            <pre class="code-block">{{ vuln.code_snippet }}</pre>
+                            <div class="description">
+                                <h4>Description</h4>
+                                <p>{{ vuln.description }}</p>
+                            </div>
+                            <div class="remediation">
+                                <h4>Remediation</h4>
+                                <p>{{ vuln.remediation | replace('\n', '<br>') | safe }}</p>
+                            </div>
+                            {% if vuln.metadata and vuln.metadata.deep_analysis and vuln.metadata.deep_analysis.performed %}
+                            {% set da = vuln.metadata.deep_analysis %}
+                            <div class="deep-analysis">
+                                <h4>Data Flow Analysis</h4>
+                                <span class="verdict-badge verdict-{{ da.verdict }}">{{ da.verdict }}</span>
+                                <div class="analysis-details">
+                                    {% if da.source_found %}
+                                    <p class="source-info"><strong>Source:</strong> {{ da.source_type }} (line {{ da.source_line }})</p>
+                                    {% endif %}
+                                    {% if da.sanitization_found %}
+                                    <p><strong>Sanitization:</strong> {{ da.sanitizer_type }} (line {{ da.sanitizer_line }})</p>
+                                    {% endif %}
+                                    {% if da.trace_path %}
+                                    <ul class="trace-path">
+                                        {% for step in da.trace_path %}
+                                        <li>{{ step }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% endif %}
+                                    {% if da.recommendation %}
+                                    <div class="recommendation">{{ da.recommendation }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+
+        {% if summary.top_vulnerable_files %}
+        <section>
+            <h2>Top Vulnerable Files</h2>
+            <ul class="top-files">
+                {% for file_info in summary.top_vulnerable_files[:10] %}
+                <li>
+                    <span class="file-name">{{ file_info.file }}</span>
+                    <span>{{ file_info.count }} issue{% if file_info.count != 1 %}s{% endif %}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+
+        {% else %}
+        <section style="text-align: center; padding: 3rem;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">&#10003;</div>
+            <h2 style="color: #10b981; border: none;">No Vulnerabilities Found</h2>
+            <p style="color: var(--text-muted);">Great job! Your code passed all security checks.</p>
+        </section>
+        {% endif %}
+
+        <footer>
+            <p>Generated by SecureCode-AI v{{ metadata.scanner_version }}</p>
+            <p>Scan ID: {{ metadata.scan_id }}</p>
+        </footer>
+    </div>
+
+    <script>
+        function toggleVuln(header) {
+            const body = header.nextElementSibling;
+            body.classList.toggle('open');
+        }
+
+        function toggleFileGroup(header) {
+            const vulns = header.nextElementSibling;
+            vulns.classList.toggle('open');
+        }
+
+        // Open first critical vulnerability by default
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstCritical = document.querySelector('.critical-section .vuln-body');
+            if (firstCritical) {
+                firstCritical.classList.add('open');
+            }
+        });
+    </script>
+</body>
+</html>
