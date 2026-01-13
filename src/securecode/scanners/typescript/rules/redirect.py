@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from securecode.core.finding import Confidence, Severity, VulnerabilityType
@@ -34,6 +35,37 @@ class OpenRedirectRule(Rule):
         "3. Validate the URL starts with your domain\n"
         "4. Use URL parsing to verify the hostname"
     )
+
+    # Patterns that indicate proper redirect validation (reduce false positives)
+    REDIRECT_VALIDATION_PATTERNS = [
+        # Relative URL check (starts with /)
+        r"\.startsWith\s*\(\s*['\"]\/['\"]",
+        r"\.startsWith\s*\(\s*['\"]\.\/['\"]",
+        r"\.startsWith\s*\(\s*['\"]\.\.\/['\"]",
+        # Same-origin/hostname validation
+        r"\.hostname\s*===",
+        r"\.host\s*===",
+        r"\.origin\s*===",
+        r"new\s+URL\s*\([^)]+\)\s*\.\s*(hostname|host|origin)\s*===",
+        # Built-in validation functions
+        r"Url\.IsLocalUrl\s*\(",
+        r"isLocalUrl\s*\(",
+        r"isSafeUrl\s*\(",
+        r"isRelativeUrl\s*\(",
+        r"validateUrl\s*\(",
+        r"isValidRedirect\s*\(",
+        r"isTrustedUrl\s*\(",
+        # Whitelist/allowlist check
+        r"(allowedUrls|allowedDomains|trustedDomains|whitelist|allowlist|validUrls)\s*\.\s*(includes|has|indexOf|some)",
+        # Protocol check
+        r"\.protocol\s*===\s*['\"]https?:?['\"]",
+        r"\.startsWith\s*\(\s*['\"]https?:\/\/['\"]",
+        # URL constructor for parsing (common validation pattern)
+        r"new\s+URL\s*\([^)]+\)",
+        # Regex validation for allowed patterns
+        r"\.match\s*\(\s*\/\^",
+        r"\.test\s*\(\s*\/\^",
+    ]
 
     def detect(self, tree: Tree, source: str, file_path: str) -> list[RuleMatch]:
         """Detect open redirect vulnerabilities."""
@@ -134,7 +166,15 @@ class OpenRedirectRule(Rule):
     def _has_user_controlled_url(self, args_node: Node, source: str) -> bool:
         """Check if redirect arguments contain user-controlled URLs."""
         args_text = self._get_node_text(args_node, source)
-        return self._looks_like_user_input(args_text)
+
+        if not self._looks_like_user_input(args_text):
+            return False
+
+        # Check if there's proper validation in scope
+        if self._has_redirect_validation(args_node, source):
+            return False  # Validated redirect is likely safe
+
+        return True
 
     def _looks_like_user_input(self, text: str) -> bool:
         """Check if text looks like it contains user input."""
@@ -148,3 +188,48 @@ class OpenRedirectRule(Rule):
             "callback", "return_to", "goto", "target",
         ]
         return any(pattern in text for pattern in user_input_patterns)
+
+    def _get_function_scope(self, node: Node) -> Node | None:
+        """
+        Find the containing function scope for a given node.
+
+        Traverses up the AST to find the nearest function declaration,
+        arrow function, or method definition.
+        """
+        current = node
+        while current:
+            if current.type in [
+                "function_declaration",
+                "function",
+                "arrow_function",
+                "method_definition",
+                "function_expression",
+            ]:
+                return current
+            current = current.parent
+        return None
+
+    def _has_redirect_validation(self, node: Node, source: str) -> bool:
+        """
+        Check if the redirect has proper URL validation in scope.
+
+        Searches the containing function for patterns that indicate
+        the redirect URL is being validated (e.g., hostname checks,
+        whitelist validation, relative URL checks).
+        """
+        # Get the containing function scope
+        function_scope = self._get_function_scope(node)
+        if not function_scope:
+            # No function scope - check a reasonable context window
+            start = max(0, node.start_byte - 500)
+            end = min(len(source), node.end_byte + 500)
+            scope_text = source[start:end]
+        else:
+            scope_text = self._get_node_text(function_scope, source)
+
+        # Check for any validation patterns
+        for pattern in self.REDIRECT_VALIDATION_PATTERNS:
+            if re.search(pattern, scope_text, re.IGNORECASE):
+                return True
+
+        return False

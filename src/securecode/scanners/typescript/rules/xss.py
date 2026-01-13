@@ -62,15 +62,75 @@ class XSSRule(Rule):
 
     # Known sanitization functions/methods that indicate safe usage
     SANITIZER_PATTERNS = [
+        # DOMPurify variations
         "DOMPurify.sanitize",
+        "dompurify.sanitize",
+        "purify.sanitize",
+        "createDOMPurify",
+
+        # sanitize-html library
         "sanitizeHtml",
-        "sanitize",
-        "xss",  # xss library
+        "sanitize-html",
+
+        # xss library
+        "xss(",
+        "filterXSS",
+
+        # validator.js
+        "validator.escape",
+        "validator.blacklist",
+        "validator.whitelist",
+
+        # lodash/underscore
+        "_.escape",
+        "lodash.escape",
+
+        # he library (HTML entities)
+        "he.encode",
+        "he.escape",
+
+        # escape-html package
         "escapeHtml",
-        "escape",
+        "escape-html",
+
+        # Generic patterns (common naming conventions)
         "htmlEscape",
+        "escapeHTML",
         "encodeHTML",
         "encodeHTMLEntities",
+        "htmlEncode",
+        "sanitize",
+        "escape",
+
+        # Framework-specific sanitizers
+        "Handlebars.Utils.escapeExpression",
+        "Mustache.escape",
+        "Ember.Handlebars.Utils.escapeExpression",
+
+        # Custom patterns (common naming in codebases)
+        "sanitizeInput",
+        "cleanHtml",
+        "safeHtml",
+        "stripTags",
+        "removeTags",
+        "encodeForHTML",
+        "htmlEntities",
+
+        # Server-side templating (auto-escapes)
+        "textContent",  # Safe DOM property
+    ]
+
+    # Type-based sanitization patterns (these make XSS impossible)
+    TYPE_SANITIZER_PATTERNS = [
+        r"typeof\s+\w+\s*===?\s*['\"]number['\"]",
+        r"typeof\s+\w+\s*===?\s*['\"]boolean['\"]",
+        r"Number\.isInteger\s*\(",
+        r"Number\.isFinite\s*\(",
+        r"Number\.isNaN\s*\(",
+        r"parseInt\s*\(",
+        r"parseFloat\s*\(",
+        r"Number\s*\(",
+        r"Boolean\s*\(",
     ]
 
     def detect(self, tree: Tree, source: str, file_path: str) -> list[RuleMatch]:
@@ -103,6 +163,7 @@ class XSSRule(Rule):
         This method checks:
         1. If the value is a direct call to a sanitizer (e.g., DOMPurify.sanitize(x))
         2. If the value is a variable that was assigned from a sanitizer call
+        3. If the value is type-coerced (parseInt, Number, etc.)
 
         Args:
             value_node: The AST node representing the value being assigned
@@ -122,11 +183,18 @@ class XSSRule(Rule):
             function = value_node.child_by_field_name("function")
             if function:
                 func_text = self._get_node_text(function, source)
+                func_text_lower = func_text.lower()
                 for sanitizer in self.SANITIZER_PATTERNS:
-                    if sanitizer in func_text:
+                    # Case-insensitive matching
+                    if sanitizer.lower() in func_text_lower:
                         return True
 
-        # Case 2: Variable that was assigned from a sanitizer
+        # Case 2: Check for type coercion (makes XSS impossible)
+        for pattern in self.TYPE_SANITIZER_PATTERNS:
+            if re.search(pattern, value_text, re.IGNORECASE):
+                return True
+
+        # Case 3: Variable that was assigned from a sanitizer
         # Look for variable declarations/assignments in the function scope
         if value_node.type == "identifier":
             var_name = value_text
@@ -170,8 +238,10 @@ class XSSRule(Rule):
                             function = value.child_by_field_name("function")
                             if function:
                                 func_text = self._get_node_text(function, source)
+                                func_text_lower = func_text.lower()
                                 for sanitizer in self.SANITIZER_PATTERNS:
-                                    if sanitizer in func_text:
+                                    # Case-insensitive matching
+                                    if sanitizer.lower() in func_text_lower:
                                         return True
 
             # Check assignment_expression: clean = DOMPurify.sanitize(...)
@@ -185,8 +255,10 @@ class XSSRule(Rule):
                             function = right.child_by_field_name("function")
                             if function:
                                 func_text = self._get_node_text(function, source)
+                                func_text_lower = func_text.lower()
                                 for sanitizer in self.SANITIZER_PATTERNS:
-                                    if sanitizer in func_text:
+                                    # Case-insensitive matching
+                                    if sanitizer.lower() in func_text_lower:
                                         return True
 
             # Recursively search children

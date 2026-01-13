@@ -74,6 +74,20 @@ class HardcodedSecretsRule(Rule):
         r"(?i)^.*(example\.com|localhost).*$",
     ]
 
+    # Patterns for hash-like identifiers (not secrets, but often flagged)
+    HASH_IDENTIFIER_PATTERNS = [
+        # UUID format (not a secret, it's an identifier)
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        # Hash digests used as identifiers (MD5, SHA1, SHA256, etc.)
+        r"^[0-9a-f]{32}$",   # MD5 (128-bit = 32 hex chars)
+        r"^[0-9a-f]{40}$",   # SHA1 (160-bit = 40 hex chars)
+        r"^[0-9a-f]{64}$",   # SHA256 (256-bit = 64 hex chars)
+        r"^[0-9a-f]{24}$",   # MongoDB ObjectId
+        # Version/build strings
+        r"^\d+\.\d+\.\d+",   # Semantic versioning (1.2.3)
+        r"^v\d+",            # Version tags (v1, v2, etc.)
+    ]
+
     # Test file/path patterns to skip or lower confidence
     TEST_PATH_PATTERNS = [
         r"[/\\]__tests__[/\\]",
@@ -142,6 +156,10 @@ class HardcodedSecretsRule(Rule):
         if any(re.search(pattern, clean_value) for pattern in self.PLACEHOLDER_PATTERNS):
             return True
 
+        # Check if it's a hash-like identifier (UUID, MD5, SHA1, etc.)
+        if self._looks_like_identifier_hash(clean_value):
+            return True
+
         # Numeric only (unlikely to be a secret)
         if re.match(r"^\d+$", clean_value):
             return True
@@ -149,6 +167,25 @@ class HardcodedSecretsRule(Rule):
         # Too uniform (like "aaaaaaa" or "1111111")
         if len(set(clean_value)) < 3:
             return True
+
+        return False
+
+    def _looks_like_identifier_hash(self, value: str) -> bool:
+        """
+        Check if value looks like a hash or identifier (not a secret).
+
+        These are commonly flagged as false positives:
+        - UUIDs (used as resource identifiers)
+        - Hash digests (MD5, SHA1, SHA256 - used as checksums/IDs)
+        - MongoDB ObjectIds
+        - Version strings
+        """
+        clean = value.strip("'\"` ")
+
+        # Check against hash identifier patterns
+        for pattern in self.HASH_IDENTIFIER_PATTERNS:
+            if re.match(pattern, clean, re.IGNORECASE):
+                return True
 
         return False
 
